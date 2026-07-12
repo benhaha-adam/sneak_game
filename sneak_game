@@ -1,0 +1,204 @@
+"""
+Snake (Worm) Game - Tkinter Edition
+-------------------------------------
+Use the arrow keys to control the snake.
+Eat the red food to grow and score points.
+Avoid hitting the walls or yourself!
+Press 'R' to restart after Game Over.
+"""
+
+import tkinter as tk
+import random
+
+# ---------- Game configuration ----------
+CELL_SIZE = 20
+GRID_WIDTH = 30
+GRID_HEIGHT = 20
+CANVAS_WIDTH = CELL_SIZE * GRID_WIDTH
+CANVAS_HEIGHT = CELL_SIZE * GRID_HEIGHT
+GAME_SPEED_MS = 120  # lower = faster
+
+BG_COLOR = "#1e1e2e"
+SNAKE_HEAD_COLOR = "#a6e3a1"
+SNAKE_BODY_COLOR = "#89b4fa"
+FOOD_COLOR = "#f38ba8"
+TEXT_COLOR = "#cdd6f4"
+
+
+class SnakeGame:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Snake Game")
+        self.root.resizable(False, False)
+
+        # Top info bar
+        self.info_frame = tk.Frame(root, bg=BG_COLOR)
+        self.info_frame.pack(fill="x")
+
+        self.score_label = tk.Label(
+            self.info_frame, text="Score: 0", font=("Consolas", 14, "bold"),
+            bg=BG_COLOR, fg=TEXT_COLOR, pady=8
+        )
+        self.score_label.pack(side="left", padx=15)
+
+        self.highscore_label = tk.Label(
+            self.info_frame, text="High Score: 0", font=("Consolas", 14, "bold"),
+            bg=BG_COLOR, fg=TEXT_COLOR, pady=8
+        )
+        self.highscore_label.pack(side="right", padx=15)
+
+        # Game canvas
+        self.canvas = tk.Canvas(
+            root, width=CANVAS_WIDTH, height=CANVAS_HEIGHT,
+            bg=BG_COLOR, highlightthickness=0
+        )
+        self.canvas.pack()
+
+        self.high_score = 0
+        self.running = False
+
+        # Bind keys
+        self.root.bind("<KeyPress>", self.on_key_press)
+
+        self.reset_game()
+        self.game_loop()
+
+    def reset_game(self):
+        # Snake starts in the middle, moving right
+        start_x = GRID_WIDTH // 2
+        start_y = GRID_HEIGHT // 2
+        self.snake = [
+            (start_x - 1, start_y),
+            (start_x - 2, start_y),
+            (start_x - 3, start_y),
+        ]
+        self.direction = "Right"
+        self.next_direction = "Right"
+        self.score = 0
+        self.running = True
+        self.food = self.spawn_food()
+        self.update_score_labels()
+
+    def spawn_food(self):
+        while True:
+            pos = (
+                random.randint(0, GRID_WIDTH - 1),
+                random.randint(0, GRID_HEIGHT - 1),
+            )
+            if pos not in self.snake:
+                return pos
+
+    def on_key_press(self, event):
+        key = event.keysym
+
+        opposites = {
+            "Up": "Down", "Down": "Up",
+            "Left": "Right", "Right": "Left"
+        }
+
+        if key in ("Up", "Down", "Left", "Right"):
+            if opposites.get(key) != self.direction:
+                self.next_direction = key
+        elif key.lower() == "r" and not self.running:
+            self.reset_game()
+
+    def move_snake(self):
+        self.direction = self.next_direction
+        head_x, head_y = self.snake[0]
+
+        if self.direction == "Up":
+            new_head = (head_x, head_y - 1)
+        elif self.direction == "Down":
+            new_head = (head_x, head_y + 1)
+        elif self.direction == "Left":
+            new_head = (head_x - 1, head_y)
+        else:  # Right
+            new_head = (head_x + 1, head_y)
+
+        # Check wall collision
+        if not (0 <= new_head[0] < GRID_WIDTH and 0 <= new_head[1] < GRID_HEIGHT):
+            self.end_game()
+            return
+
+        # Check self collision
+        if new_head in self.snake:
+            self.end_game()
+            return
+
+        self.snake.insert(0, new_head)
+
+        # Check food collision
+        if new_head == self.food:
+            self.score += 10
+            self.food = self.spawn_food()
+            self.update_score_labels()
+        else:
+            self.snake.pop()
+
+    def update_score_labels(self):
+        self.score_label.config(text=f"Score: {self.score}")
+        if self.score > self.high_score:
+            self.high_score = self.score
+        self.highscore_label.config(text=f"High Score: {self.high_score}")
+
+    def end_game(self):
+        self.running = False
+
+    def draw(self):
+        self.canvas.delete("all")
+
+        # Draw grid background (subtle)
+        for x in range(0, CANVAS_WIDTH, CELL_SIZE):
+            self.canvas.create_line(x, 0, x, CANVAS_HEIGHT, fill="#313244")
+        for y in range(0, CANVAS_HEIGHT, CELL_SIZE):
+            self.canvas.create_line(0, y, CANVAS_WIDTH, y, fill="#313244")
+
+        # Draw food
+        fx, fy = self.food
+        self.canvas.create_oval(
+            fx * CELL_SIZE + 2, fy * CELL_SIZE + 2,
+            fx * CELL_SIZE + CELL_SIZE - 2, fy * CELL_SIZE + CELL_SIZE - 2,
+            fill=FOOD_COLOR, outline=""
+        )
+
+        # Draw snake
+        for i, (x, y) in enumerate(self.snake):
+            color = SNAKE_HEAD_COLOR if i == 0 else SNAKE_BODY_COLOR
+            self.canvas.create_rectangle(
+                x * CELL_SIZE + 1, y * CELL_SIZE + 1,
+                x * CELL_SIZE + CELL_SIZE - 1, y * CELL_SIZE + CELL_SIZE - 1,
+                fill=color, outline=""
+            )
+
+        # Game over overlay
+        if not self.running:
+            self.canvas.create_rectangle(
+                0, 0, CANVAS_WIDTH, CANVAS_HEIGHT, fill="#000000", stipple="gray50"
+            )
+            self.canvas.create_text(
+                CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 20,
+                text="GAME OVER", fill="#f38ba8",
+                font=("Consolas", 28, "bold")
+            )
+            self.canvas.create_text(
+                CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20,
+                text=f"Score: {self.score}   |   Press R to Restart",
+                fill=TEXT_COLOR, font=("Consolas", 14)
+            )
+
+    def game_loop(self):
+        if self.running:
+            self.move_snake()
+        self.draw()
+        self.root.after(GAME_SPEED_MS, self.game_loop)
+
+
+def main():
+    root = tk.Tk()
+    root.configure(bg=BG_COLOR)
+    game = SnakeGame(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
